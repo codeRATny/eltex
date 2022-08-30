@@ -15,45 +15,47 @@ const char *qq[] = {
     "exit\n"
 };
 
-int pipe_exc(char **commands, char ***args, int commands_c)
+void pipe_exc(char **commands, char ***args, int commands_c)
 {
     byte i;
-    int fd[2];
-    if (pipe(fd) == -1) {
-        fprintf(stderr, "pipe err\n");
-        return -1;
-    }
-    int status = 0;
-    pid_t* pid = malloc(sizeof(pid_t) * (commands_c - 1));
-
-    for (i = 0; i < commands_c; i++) {
-        pid[i] = fork();
-        if (!pid[i]) {
-            dup2(fd[0], STDIN_FILENO);
-            if (i != (commands_c - 1)) {
-                dup2(fd[1], STDOUT_FILENO);
-            }
-            close(fd[0]);
-            close(fd[1]);
-
-            execvp(commands[i], args[i]);
-            perror("execvp");
-            exit(EXIT_SUCCESS);
-        }
-    }
-
-    close(fd[0]);
-    close(fd[1]);
-
-    for (i = 0; i < commands_c; i++) {
-        waitpid(pid[i], &status, WUNTRACED);
-    }
-
-    free(pid);
+    int status;
+    pid_t pid;
+    pid_t ppid = fork();
     
-    return 0;
+    if (ppid == 0) {
+        int fd[commands_c][2];
+        for (int i = 0; i < commands_c; i++) {
+            if (pipe(fd[i]) < 0) {
+                perror("pipe");
+                exit(EXIT_FAILURE);
+            }
+        }
+        for (int i = 0; i < commands_c; i++) {
+            pid = fork();
+            if (pid == 0) {
+                dup2(fd[i][STDIN_FILENO], STDIN_FILENO);
+                close(fd[i][STDOUT_FILENO]);
+                if (i + 1 != commands_c) {
+                    dup2(fd[i + 1][STDOUT_FILENO], STDOUT_FILENO);
+                    close(fd[i + 1][STDIN_FILENO]);
+                }
+                execvp(commands[i], args[i]);
+                perror("execvp");
+                exit(EXIT_FAILURE);
+            }
+            close(fd[i + 1][STDOUT_FILENO]);
+            do {
+                waitpid(pid, &status, WUNTRACED);
+            } while (!WIFEXITED(status) && !WIFSIGNALED(status));
+        }
+        exit(EXIT_FAILURE);
+    } else {
+        int sp;
+        do {
+            waitpid(ppid, &sp, WUNTRACED);
+        } while (!WIFEXITED(sp) && !WIFSIGNALED(sp));
+    }
 }
-
 
 int main(int argc, char *argv[])
 {
@@ -72,7 +74,7 @@ int main(int argc, char *argv[])
     fprintf(stdout, "Welcome to my bash\n");
     fprintf(stdout, "Write q/quit/exit for close bash\n");
 
-    while(strcmp(input, "q")) {
+    for(;;) {
         fprintf(stdout, "$ ");
         fgets(input, 50, stdin);
 
@@ -81,9 +83,10 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        for (byte j = 0; j < sizeof(qq) / sizeof(char*); j++)
-            if (!strcmp(input, qq[j])){
+        for (int j = 0; j < (int)sizeof(qq) / sizeof(char*); j++) {
+            if (strcmp(input, qq[j]) == 0) {
                 exit(EXIT_SUCCESS);
+            }
         }
 
         istr = strtok(input, sep);
@@ -100,6 +103,10 @@ int main(int argc, char *argv[])
                     strcpy(commands[commands_c], istr);
                     strcpy(args[args_c][args_c_c], istr);
                     //printf("n c[%d] = %s, a[%d][%d] = %s\n", commands_c, commands[commands_c], args_c, args_c_c, args[args_c][args_c_c]);
+                    args_c_c++;
+                    args[args_c] = realloc(args[args_c], sizeof(char*) * (args_c_c + 1));
+                    args[args_c][args_c_c] = NULL;
+                    //printf("arg[%d][%d] = %s\n", args_c, args_c_c, args[args_c][args_c_c]);
                 } else {
                     strcpy(commands[commands_c], istr);
                     strcpy(args[args_c][args_c_c], istr);
