@@ -1,0 +1,37 @@
+.PHONY: build run
+
+OPERATION_DIR = functional/operation
+BUILD_OBJ_DIR = build/obj
+BUILD_LIB_DIR = build/libs
+BIN_DIR       = build/bin
+FUNCS_OBJ     = $(BUILD_OBJ_DIR)/addition.o $(BUILD_OBJ_DIR)/subtraction.o $(BUILD_OBJ_DIR)/division.o $(BUILD_OBJ_DIR)/multiplication.o
+LIBCALC       = $(BUILD_LIB_DIR)/libmycalc.a
+CC            = gcc
+I_FLAG        = -I./functional
+AR_FLAGS      = -rcs
+
+
+build: $(BIN_DIR)/main
+
+$(BIN_DIR)/main: $(BUILD_OBJ_DIR)/main.o $(LIBCALC)
+	$(CC) -o $(BIN_DIR)/main $(BUILD_OBJ_DIR)/main.o -L./$(BUILD_LIB_DIR) -lmycalc
+	
+$(LIBCALC): $(FUNCS_OBJ)
+	ar $(AR_FLAGS) $(LIBCALC) $(FUNCS_OBJ)
+
+$(BUILD_OBJ_DIR)/main.o: main.c
+	$(CC) $(I_FLAG) -c main.c -o $(BUILD_OBJ_DIR)/main.o -g
+
+$(BUILD_OBJ_DIR)/addition.o: $(OPERATION_DIR)/addition.c
+	$(CC) -c $(OPERATION_DIR)/addition.c -o $(BUILD_OBJ_DIR)/addition.o
+
+$(BUILD_OBJ_DIR)/subtraction.o: $(OPERATION_DIR)/subtraction.c
+	$(CC) -c $(OPERATION_DIR)/subtraction.c -o $(BUILD_OBJ_DIR)/subtraction.o
+$(BUILD_OBJ_DIR)/division.o: $(OPERATION_DIR)/division.c
+	$(CC) -c $(OPERATION_DIR)/division.c -o $(BUILD_OBJ_DIR)/division.o
+
+$(BUILD_OBJ_DIR)/multiplication.o: $(OPERATION_DIR)/multiplication.c
+	$(CC) -c $(OPERATION_DIR)/multiplication.c -o $(BUILD_OBJ_DIR)/multiplication.o
+
+run:
+	./$(BIN_DIR)/main
